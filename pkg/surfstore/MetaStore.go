@@ -13,15 +13,23 @@ type MetaStore struct {
 }
 
 func (m *MetaStore) GetFileInfoMap(ctx context.Context, _ *emptypb.Empty) (*FileInfoMap, error) {
-	panic("todo")
+	var fim FileInfoMap
+	fim.FileInfoMap = m.FileMetaMap
+
+	return &fim, nil
+	// panic("todo")
 }
 
 func (m *MetaStore) UpdateFile(ctx context.Context, fileMetaData *FileMetaData) (*Version, error) {
-	panic("todo")
+	m.FileMetaMap[fileMetaData.Filename] = fileMetaData
+
+	return &Version{Version: fileMetaData.GetVersion()}, nil
+	// panic("todo")
 }
 
 func (m *MetaStore) GetBlockStoreAddr(ctx context.Context, _ *emptypb.Empty) (*BlockStoreAddr, error) {
-	panic("todo")
+	return &BlockStoreAddr{Addr: m.BlockStoreAddr}, nil
+	// panic("todo")
 }
 
 // This line guarantees all method for MetaStore are implemented

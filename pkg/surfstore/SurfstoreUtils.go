@@ -12,11 +12,12 @@ import (
 )
 
 func uploadFile(filename, blockStoreAddr string, client RPCClient) error {
-	f, _ := os.Open(filename)
+	fmt.Println("Uploading...")
+	filepath := ConcatPath(client.BaseDir, filename)
+	f, _ := os.Open(filepath)
 	dataBlocks := getDataBlocks(f, client.BlockSize)
 	var block Block
 	var succ bool
-
 	for _, dataBlock := range dataBlocks {
 		block.BlockData = []byte(dataBlock)
 		block.BlockSize = int32(len([]byte(dataBlock)))
@@ -40,6 +41,7 @@ func updateLocalIndex(filename string, remoteFileMetaData *FileMetaData, newReco
 }
 
 func downloadFile(filename, blockStoreAddr string, hashList []string, client RPCClient) {
+	fmt.Println("Downloading...")
 	filepath := ConcatPath(client.BaseDir, filename)
 	file, _ := os.Create(filepath)
 	defer file.Close()
@@ -92,7 +94,7 @@ func getHashList(file *os.File, blockSize int) []string {
 	return hashList
 }
 
-func areHashListsEqual(hashList1, hashList2 []string) bool {
+func hashListsEqual(hashList1, hashList2 []string) bool {
 	if len(hashList1) != len(hashList2) {
 		return false
 	}
@@ -181,9 +183,52 @@ func ClientSync(client RPCClient) {
 	// Check if file in remote index is present in local index or not
 	// Note: If file exists on cloud and locally, then it must also be present in index.txt
 	for filename, remoteFileMetaData := range remoteFileMetaMap {
-		if localFileMetaData, exists := fileMap[filename]; exists { // if remote file exists locally
-			// TODO: Handle conflict case
-			fmt.Println(localFileMetaData)
+		if _, exists := fileMap[filename]; exists { // if remote file exists locally
+			f, _ := os.Open(ConcatPath(client.BaseDir, filename))
+			fileHash := getHashList(f, client.BlockSize)
+
+			if hashListsEqual(fileHash, localFileMetaMap[filename].GetBlockHashList()) { // No uncommitted local modifications
+				if remoteFileMetaData.GetVersion() > localFileMetaMap[filename].GetVersion() { // Remote index version is higher than local version
+					downloadFile(filename, blockStoreAddr, remoteFileMetaData.GetBlockHashList(), client)
+
+					var modRecord FileMetaData
+					updateLocalIndex(filename, remoteFileMetaData, &modRecord)
+
+					localFileMetaMap[filename] = &modRecord
+				}
+			} else { // Uncommitted local modifications are present
+				if remoteFileMetaData.GetVersion() > localFileMetaMap[filename].GetVersion() { // Remote index version is higher than local version
+					downloadFile(filename, blockStoreAddr, remoteFileMetaData.GetBlockHashList(), client)
+
+					var modRecord FileMetaData
+					updateLocalIndex(filename, remoteFileMetaData, &modRecord)
+
+					localFileMetaMap[filename] = &modRecord
+				} else { // Remote index version is same as version in index.txt
+					err = uploadFile(filename, blockStoreAddr, client)
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					f, _ := os.Open(ConcatPath(client.BaseDir, filename))
+
+					var modRecord FileMetaData
+
+					modRecord.Filename = filename
+					modRecord.BlockHashList = getHashList(f, client.BlockSize)
+					modRecord.Version = localFileMetaMap[filename].GetVersion() + 1
+
+					var latestVersion int32
+					err = client.UpdateFile(&modRecord, &latestVersion)
+					if err != nil {
+						// Version error!
+						downloadFile(filename, blockStoreAddr, remoteFileMetaData.GetBlockHashList(), client)
+						updateLocalIndex(filename, remoteFileMetaData, &modRecord)
+					}
+
+					localFileMetaMap[filename] = &modRecord
+				}
+			}
 		} else { // if remote file DNE locally, download blocks and reconstitute file
 			downloadFile(filename, blockStoreAddr, remoteFileMetaData.GetBlockHashList(), client)
 
@@ -223,13 +268,20 @@ func ClientSync(client RPCClient) {
 			err = client.UpdateFile(&newRecord, &latestVersion)
 			if err != nil {
 				// Version error!
-				// TODO: Handle conflict
-			} else {
-				localFileMetaMap[filename] = &newRecord
+				downloadFile(filename, blockStoreAddr, remoteFileMetaData.GetBlockHashList(), client)
+				updateLocalIndex(filename, remoteFileMetaData, &newRecord)
 			}
+
+			localFileMetaMap[filename] = &newRecord
 		}
 	}
 
+	// update local index.txt
+	err = WriteMetaFile(localFileMetaMap, client.BaseDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// fmt.Println("HI!!!!!!")
 	// Check if file in local index is present in remote index or not
 	// for filename, localFileMetaData := range localFileMetaMap {
 	// 	if remoteFileMetaData, exists := remoteFileMetaMap[filename]; exists { // if local file exists remotely
@@ -262,14 +314,6 @@ func ClientSync(client RPCClient) {
 	// 		// remoteFileMetaMap[filename] = &newRecord		// TODO: Check if this line is required or not
 	// 	}
 	// }
-
-	// later
-
-	var block Block
-	blockHash := "1234"
-	err = client.GetBlock(blockHash, blockStoreAddr, &block)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// fmt.Println("HI!!!!!!!!!!!")
 	// panic("todo")
 }
