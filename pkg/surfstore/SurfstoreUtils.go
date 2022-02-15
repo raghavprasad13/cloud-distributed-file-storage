@@ -235,7 +235,10 @@ func ClientSync(client RPCClient) {
 					log.Fatal(err)
 				}
 				if latestVersion == -1 { // This signals version error
-					downloadFile(filename, blockStoreAddr, localFileMetaData.GetBlockHashList(), client)
+					var tempRemoteFileMetaMap map[string]*FileMetaData
+					client.GetFileInfoMap(&tempRemoteFileMetaMap)
+					tempRemoteFileMetaData := tempRemoteFileMetaMap[filename]
+					downloadFile(filename, blockStoreAddr, tempRemoteFileMetaData.GetBlockHashList(), client)
 				}
 			}
 		} else { // if it DNE, download it and add the corresponding entry to the local index
@@ -264,7 +267,10 @@ func ClientSync(client RPCClient) {
 				log.Fatal(err)
 			}
 			if latestVersion == -1 { // This signals version error
-				downloadFile(filename, blockStoreAddr, localFileMetaData.GetBlockHashList(), client)
+				var tempRemoteFileMetaMap map[string]*FileMetaData
+				client.GetFileInfoMap(&tempRemoteFileMetaMap)
+				tempRemoteFileMetaData := tempRemoteFileMetaMap[filename]
+				downloadFile(filename, blockStoreAddr, tempRemoteFileMetaData.GetBlockHashList(), client)
 			}
 		}
 	}
@@ -273,141 +279,4 @@ func ClientSync(client RPCClient) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// // Check if file in remote index is present in local index or not
-	// // Note: If file exists on cloud and locally, then it must also be present in index.txt
-	// for filename, remoteFileMetaData := range remoteFileMetaMap {
-	// 	if _, exists := fileMap[filename]; exists { // if remote file exists locally
-	// 		f, _ := os.Open(ConcatPath(client.BaseDir, filename))
-	// 		fileHash := getHashList(f, client.BlockSize)
-
-	// 		if hashListsEqual(fileHash, localFileMetaMap[filename].GetBlockHashList()) { // No uncommitted local modifications
-	// 			if remoteFileMetaData.GetVersion() > localFileMetaMap[filename].GetVersion() { // Remote index version is higher than local version
-	// 				downloadFile(filename, blockStoreAddr, remoteFileMetaData.GetBlockHashList(), client)
-
-	// 				var modRecord FileMetaData
-	// 				updateLocalIndex(filename, remoteFileMetaData, &modRecord)
-
-	// 				localFileMetaMap[filename] = &modRecord
-	// 			}
-	// 		} else { // Uncommitted local modifications are present
-	// 			if remoteFileMetaData.GetVersion() > localFileMetaMap[filename].GetVersion() { // Remote index version is higher than local version
-	// 				downloadFile(filename, blockStoreAddr, remoteFileMetaData.GetBlockHashList(), client)
-
-	// 				var modRecord FileMetaData
-	// 				updateLocalIndex(filename, remoteFileMetaData, &modRecord)
-
-	// 				localFileMetaMap[filename] = &modRecord
-	// 			} else { // Remote index version is same as version in index.txt
-	// 				err = uploadFile(filename, blockStoreAddr, client)
-	// 				if err != nil {
-	// 					log.Fatal(err)
-	// 				}
-
-	// 				f, _ := os.Open(ConcatPath(client.BaseDir, filename))
-
-	// 				var modRecord FileMetaData
-
-	// 				modRecord.Filename = filename
-	// 				modRecord.BlockHashList = getHashList(f, client.BlockSize)
-	// 				modRecord.Version = localFileMetaMap[filename].GetVersion() + 1
-
-	// 				var latestVersion int32
-	// 				err = client.UpdateFile(&modRecord, &latestVersion)
-	// 				if err != nil {
-	// 					// Version error!
-	// 					downloadFile(filename, blockStoreAddr, remoteFileMetaData.GetBlockHashList(), client)
-	// 					updateLocalIndex(filename, remoteFileMetaData, &modRecord)
-	// 				}
-
-	// 				localFileMetaMap[filename] = &modRecord
-	// 			}
-	// 		}
-	// 	} else { // if remote file DNE locally, download blocks and reconstitute file
-	// 		downloadFile(filename, blockStoreAddr, remoteFileMetaData.GetBlockHashList(), client)
-
-	// 		var newRecord FileMetaData
-	// 		updateLocalIndex(filename, remoteFileMetaData, &newRecord)
-
-	// 		localFileMetaMap[filename] = &newRecord
-	// 	}
-	// }
-
-	// // update local index.txt
-	// err = WriteMetaFile(localFileMetaMap, client.BaseDir)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// // Next, it is possible that there are new files in the local base directory that aren’t in the local index or in the remote index
-	// for filename := range fileMap {
-	// 	if remoteFileMetaData, exists := remoteFileMetaMap[filename]; exists {
-	// 		// TODO: Handle conflict case
-	// 		fmt.Println(remoteFileMetaData)
-	// 	} else { // In this case the file DNE remotely and also DNE in index.txt
-	// 		err = uploadFile(filename, blockStoreAddr, client)
-	// 		if err != nil {
-	// 			log.Fatal(err)
-	// 		}
-
-	// 		f, _ := os.Open(ConcatPath(client.BaseDir, filename))
-
-	// 		var newRecord FileMetaData
-
-	// 		newRecord.Filename = filename
-	// 		newRecord.BlockHashList = getHashList(f, client.BlockSize)
-	// 		newRecord.Version = 1
-
-	// 		var latestVersion int32
-	// 		err = client.UpdateFile(&newRecord, &latestVersion)
-	// 		if err != nil {
-	// 			// Version error!
-	// 			downloadFile(filename, blockStoreAddr, remoteFileMetaData.GetBlockHashList(), client)
-	// 			updateLocalIndex(filename, remoteFileMetaData, &newRecord)
-	// 		}
-
-	// 		localFileMetaMap[filename] = &newRecord
-	// 	}
-	// }
-
-	// // update local index.txt
-	// err = WriteMetaFile(localFileMetaMap, client.BaseDir)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// fmt.Println("HI!!!!!!")
-	// Check if file in local index is present in remote index or not
-	// for filename, localFileMetaData := range localFileMetaMap {
-	// 	if remoteFileMetaData, exists := remoteFileMetaMap[filename]; exists { // if local file exists remotely
-	// 		// TODO: Handle conflict case
-	// 		fmt.Println(remoteFileMetaData)
-	// 	} else { // if local file DNE remotely, upload blocks
-	// 		f, _ := os.Open(ConcatPath(client.BaseDir, filename))
-	// 		localFileBlocks := getDataBlocks(f, client.BlockSize)
-	// 		var block Block
-	// 		var succ bool
-	// 		for _, localFileBlock := range localFileBlocks {
-	// 			block.BlockData = []byte(localFileBlock)
-	// 			block.BlockSize = int32(len([]byte(localFileBlock)))
-	// 			err := client.PutBlock(&block, blockStoreAddr, &succ)
-	// 			if err != nil {
-	// 				log.Fatal(err)
-	// 			}
-	// 		}
-
-	// 		// update remote index
-	// 		var newRecord FileMetaData
-
-	// 		newRecord.Filename = filename
-	// 		newRecord.BlockHashList = localFileMetaData.GetBlockHashList()
-	// 		newRecord.Version = localFileMetaData.GetVersion()
-
-	// 		var latestVersion int32
-	// 		client.UpdateFile(&newRecord, &latestVersion)
-
-	// 		// remoteFileMetaMap[filename] = &newRecord		// TODO: Check if this line is required or not
-	// 	}
-	// }
-	// fmt.Println("HI!!!!!!!!!!!")
-	// panic("todo")
 }

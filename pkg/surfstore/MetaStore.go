@@ -28,8 +28,6 @@ func (m *MetaStore) UpdateFile(ctx context.Context, fileMetaData *FileMetaData) 
 
 	if _, exists := m.FileMetaMap[fileMetaData.Filename]; exists {
 		if m.FileMetaMap[fileMetaData.Filename].GetVersion() >= fileMetaData.GetVersion() {
-			fileMetaData.Version = m.FileMetaMap[fileMetaData.Filename].GetVersion()
-			fileMetaData.BlockHashList = m.FileMetaMap[fileMetaData.Filename].GetBlockHashList()
 			return &Version{Version: int32(-1)}, nil
 		}
 	}
