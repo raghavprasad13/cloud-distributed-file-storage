@@ -12,7 +12,7 @@ import (
 )
 
 func uploadFile(filename, blockStoreAddr string, client RPCClient) error {
-	fmt.Println("Uploading...")
+	log.Println("Uploading...")
 	filepath := ConcatPath(client.BaseDir, filename)
 	f, _ := os.Open(filepath)
 	dataBlocks := getDataBlocks(f, client.BlockSize)
@@ -41,7 +41,7 @@ func updateLocalIndex(filename string, remoteFileMetaData *FileMetaData, newReco
 }
 
 func downloadFile(filename, blockStoreAddr string, hashList []string, client RPCClient) {
-	fmt.Println("Downloading...")
+	log.Println("Downloading...")
 	filepath := ConcatPath(client.BaseDir, filename)
 	file, _ := os.Create(filepath)
 	defer file.Close()
